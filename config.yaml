@@ -1,0 +1,20 @@
+brick:
+  full: 
+    l: 210
+    w: 100
+    h: 50
+    symbol: 'xxxx'
+
+  half:
+    l: 100
+    w: 100
+    h: 50
+    symbol: 'xx'
+  
+joint:
+  head: 10
+  bed: 12.5
+
+wall:
+  l: 2300
+  h: 2000
