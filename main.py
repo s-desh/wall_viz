@@ -2,6 +2,7 @@ import yaml
 import tkinter as tk
 import pandas as pd
 import colorsys
+import argparse
 
 with open('config.yaml', 'r') as file:
     build_config = yaml.safe_load(file)
@@ -10,6 +11,7 @@ with open('config.yaml', 'r') as file:
 # other internal vars
 FULL = build_config["brick"]["full"]
 HALF = build_config["brick"]["half"]
+QUEEN = build_config["brick"]["queen"]
 HEAD = build_config["joint"]["head"]
 BED  = build_config["joint"]["bed"]
 WALL_L = build_config['wall']['l']
@@ -30,6 +32,17 @@ BRICK_COLOR_MAP = {
 STRIDE_L = 800
 STRIDE_H = 1300
 
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Wall visualizer")
+    parser.add_argument(
+        "--bond",
+        choices=["stretcher", "english_cross"],
+        default="stretcher",
+        help="Bond pattern"
+    )
+    return parser.parse_args()
+
 def mm_to_px(x_mm):
     return int(x_mm * px_per_mm)
 
@@ -38,8 +51,41 @@ def symbol_to_width(symbol):
         return FULL["l"]
     elif symbol == HALF["symbol"]:
         return HALF["l"]
+    elif symbol == QUEEN["symbol"]:
+        return QUEEN["l"]
     else:
         raise ValueError(f"Unknown brick: {symbol}")
+
+def english_cross_bond_row(row_idx):
+    course = []
+
+    # alternate stretcher and header
+    first_brick = FULL if (row_idx % 2 == 0) else HALF
+    course.append(first_brick['symbol'])
+    
+    # half followed by queen for header course
+    if first_brick == HALF: 
+        second_brick = QUEEN 
+    elif (row_idx % 4 == 0):
+        # remove head joint alignment in alternate stretcher courses
+        second_brick = HALF
+    else:
+        second_brick = FULL
+    course.append(second_brick["symbol"])
+
+    # remaining wall, remove identical 4 bricks from start and end of row
+    remaining_wall = WALL_L - 2 * (first_brick['l'] + HEAD + second_brick["l"]) - HEAD - HALF["l"]
+    
+    # fill remaining wall header / stretcher
+    remaining_brick = first_brick
+    n_full = remaining_wall // (remaining_brick['l'] + HEAD)
+    course.extend([remaining_brick['symbol']]*n_full)
+
+    # closing bricks, identical to first two
+    course.extend([second_brick['symbol'], first_brick['symbol']])
+
+    return course
+
 
 def stretcher_bond_row(row_idx):
     course = []
@@ -92,23 +138,18 @@ class WallViz:
         self.bricks = self._build_template()
         self.build_order = []
 
+        
+        # self.stride_starts=[(0,0),(0,5),(0,7)]
+        self.stride_starts = self._stride_starts_gen()
+        self.stride_counter = 0
         self.counter = 0
-
-        self.window.bind_all("<Return>", self.step) # callback with enter
 
         self.info_bottom = self.canvas.create_text(
             CANVAS_W//2, CANVAS_H - PAD//2,
             text="", fill="#cc3333", font=("Segoe UI", 10)
         )
-
-        self.stride_plan = False
         
-        # generate stride start coordinates
-        self.stride_starts = self._stride_starts_gen()
-        
-        # self.stride_starts=[(0, 7), (0, 0), (0, 1)]
-        self.stride_counter = 0
-
+        self.window.bind_all("<Return>", self.step) # callback with enter
         self._update_status()
 
     def _draw_brick(self, x_mm, y_mm, w_mm, h_mm, color, text=None):
@@ -163,7 +204,7 @@ class WallViz:
         
         self.bricks["built"] = False
         # print(remaining_bricks)
-        print(selected_strides)
+        # print(selected_strides)
         print(f"Number of strides: {len(selected_strides)}")
         return selected_strides
 
@@ -222,8 +263,6 @@ class WallViz:
                     build_order.append((int(curr["row"]), int(curr["col"])))
                     if not simulate: self.set_built(int(curr["row"]), int(curr["col"]), True)
 
-        self.stride_plan = True
-
         return build_order
     
     def _build_template(self):
@@ -232,7 +271,10 @@ class WallViz:
         '''
         rows_data = []
         for row in range(int(ROWS)):
-            course = stretcher_bond_row(row)
+            if args.bond == "stretcher":
+                course = stretcher_bond_row(row)
+            elif args.bond == "english_cross":
+                course = english_cross_bond_row(row)
 
             # brick coordinates, y down is +ve
             y = (WALL_H - (row+1) * (FULL['h'] + BED))
@@ -271,18 +313,19 @@ class WallViz:
         Step through the build plan - through every stride, highlight built bricks
         '''
 
-        if self.stride_counter >= len(self.stride_starts):
+        
+        if (self.stride_counter == len(self.stride_starts)) and (self.counter == len(self.build_order)):
             print("Build complete!")
             return
-
-        if self.counter >= len(self.build_order):
-            self.stride_plan = False
-            print("Stride built!")     
+        
+        if (self.counter == len(self.build_order)) or (len(self.build_order) == 0):
             r, c = self.stride_starts[self.stride_counter]
             self.build_order =  self._build_order_stride(r, c)
-            self.counter = 0 
+            print(f"Generated build order for Stride {self.stride_counter}")
             self.stride_counter += 1
-           
+            self.counter = 0
+        
+        # print(self.build_order)
         brick_idx = self.build_order[self.counter]
         brick = self.get_brick(brick_idx[0],brick_idx[1])
         color = stride_color_for(self.stride_counter)
@@ -301,6 +344,7 @@ class WallViz:
 
 
 if __name__ == "__main__":
+    args = parse_args()
     window = tk.Tk()
     app = WallViz(window)
     window.mainloop()
