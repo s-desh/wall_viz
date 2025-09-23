@@ -1,5 +1,7 @@
 import yaml
 import tkinter as tk
+import pandas as pd
+import colorsys
 
 with open('config.yaml', 'r') as file:
     build_config = yaml.safe_load(file)
@@ -64,6 +66,14 @@ def stretcher_bond_row(row_idx):
 
     return course
 
+def hex_from_hsv(h, s=0.65, v=0.85):
+    r, g, b = colorsys.hsv_to_rgb(h, s, v)
+    return "#{:02x}{:02x}{:02x}".format(int(r*255), int(g*255), int(b*255))
+
+def stride_color_for(k: int) -> str:
+    return hex_from_hsv((k * 0.1) % 1.0)
+
+
 class WallViz:
     def __init__(self, window):
         self.window = window
@@ -78,10 +88,9 @@ class WallViz:
             outline="#555555", width=2
         )
 
-        self.bricks = []
+        # lay build plan
+        self.bricks = self._build_template()
         self.build_order = []
-
-        self._build_template()
 
         self.counter = 0
 
@@ -92,6 +101,14 @@ class WallViz:
             text="", fill="#cc3333", font=("Segoe UI", 10)
         )
 
+        self.stride_plan = False
+        
+        # generate stride start coordinates
+        self.stride_starts = self._stride_starts_gen()
+        
+        # self.stride_starts=[(0, 7), (0, 0), (0, 1)]
+        self.stride_counter = 0
+
         self._update_status()
 
     def _draw_brick(self, x_mm, y_mm, w_mm, h_mm, color, text=None):
@@ -100,66 +117,179 @@ class WallViz:
         x1 = PAD + mm_to_px(x_mm + w_mm)
         y1 = PAD + mm_to_px(y_mm + h_mm)
 
-        cx = (x0 + x1) / 2
-        cy = (y0 + y1) / 2
-
         self.rect_id = self.canvas.create_rectangle(x0, y0, x1, y1, fill=color) 
-        self.text_id = self.canvas.create_text(
-            cx, cy,
-            text=text, fill="#000000", font=("Segoe UI", 10)
-        )
 
-        return self.rect_id, self.text_id
+        return self.rect_id
+    
+    def _stride_starts_gen(self):
+        all_starts = []
+
+        for _, brick in self.bricks.iterrows():
+            if brick["row"] % 5 == 0:
+                all_starts.append((int(brick["row"]), int(brick["col"])))
+        
+        remaining_bricks = set((int(r), int(c)) for r, c in 
+                             zip(self.bricks['row'], self.bricks['col']))
+        selected_strides = []
+        
+        print("Optimizing stride start coordinates ...")
+
+        while self.bricks[self.bricks["built"]==False].shape[0]>0:
+            best_start = None
+            best_coverage = 0
+            best_bricks = []
+            for start in all_starts:
+                # if start not in remaining_bricks:
+                #     continue
+                
+                # print(start)
+                buildable = self._build_order_stride(start[0], start[1], simulate=True)
+                relevant_bricks = [b for b in buildable if b in remaining_bricks]
+                relevant_coverage = len(relevant_bricks)
+
+                if relevant_coverage > best_coverage:
+                    best_coverage = relevant_coverage
+                    best_start = start
+                    best_bricks = relevant_bricks
+            
+            if best_start is None or best_coverage == 0:
+                # print("none")
+                break
+                
+            selected_strides.append(best_start)
+            self._build_order_stride(best_start[0],best_start[1])
+            remaining_bricks -= set(best_bricks)
+            all_starts.remove(best_start)
+        
+        self.bricks["built"] = False
+        # print(remaining_bricks)
+        print(selected_strides)
+        print(f"Number of strides: {len(selected_strides)}")
+        return selected_strides
+
+    
+    def get_brick(self, r, c):
+        m = (self.bricks["row"] == r) & (self.bricks["col"] == c)
+        if not m.any():
+            return None
+        return self.bricks.loc[m].iloc[0]   
+
+    def set_built(self, r, c, val=True):
+        m = (self.bricks["row"] == r) & (self.bricks["col"] == c)
+        self.bricks.loc[m, "built"] = val
+        
+    def _build_order_stride(self, start_r, start_c, simulate=False):
+        '''
+        Generate build order for given start position 
+        '''
+        course_h = FULL["h"] + BED
+        rows_in_stride = STRIDE_H // course_h
+        r_end = min(int(ROWS), int(start_r + rows_in_stride))
+        build_order= []
+
+        start_b = self.get_brick(start_r, start_c)
+        x_base = 0 if start_b is None else start_b["x0"]
+        x_end = x_base + STRIDE_L
+    
+        # check every brick in every row of stride
+        for r in range(start_r, r_end):
+            
+            # use unbuilt bricks within stride limits
+            row_df = self.bricks[(self.bricks["row"] == r) & (self.bricks["x0"] >= x_base) & (self.bricks["built"] == False) &  (self.bricks["x1"] <= x_end)].sort_values("x0")
+            if row_df.empty:
+                continue
+            
+            # decide if brick should be built
+            for i, curr in row_df.iterrows():
+                left = False
+                right = False
+                
+                # bottom row, place until stride allows
+                if (r == 0):
+                    build_order.append((int(curr["row"]),(int(curr["col"]))))
+                    if not simulate: self.set_built(int(curr["row"]), int(curr["col"]), True)
+                    continue
+                
+                below = self.bricks[(self.bricks["row"] == r - 1) & (self.bricks["built"] == True)]
+                if below.empty:
+                    continue
+                          
+                # check if both corners of current brick are supported by below row 
+                if not below.loc[(below["x0"] <= curr["x0"]) & (below["x1"] >= curr["x0"]),:].empty: left = True
+                if not below.loc[(below["x0"] <= curr["x1"]) & (below["x1"] >= curr["x1"]),:].empty: right = True
+
+                if (left and right):
+                    build_order.append((int(curr["row"]), int(curr["col"])))
+                    if not simulate: self.set_built(int(curr["row"]), int(curr["col"]), True)
+
+        self.stride_plan = True
+
+        return build_order
     
     def _build_template(self):
         '''
-        Draws the wall build plan
+        Designs the wall build plan
         '''
-
+        rows_data = []
         for row in range(int(ROWS)):
             course = stretcher_bond_row(row)
 
             # brick coordinates, y down is +ve
             y = (WALL_H - (row+1) * (FULL['h'] + BED))
-
             course_h = FULL['h'] + BED
              
-
             x = 0
             for col, brick_symbol in enumerate(course):
                 width = symbol_to_width(brick_symbol)
                 
-                stride = int(max(row * (course_h) // STRIDE_H, x // STRIDE_L))
-                rect_id, stride_id = self._draw_brick(x, y, width, FULL['h'], COLOR_PLANNED, stride)
+                # stride = int(row * (course_h) // STRIDE_H) + int(x // STRIDE_L)
+                rect_id= self._draw_brick(x, y, width, FULL['h'], COLOR_PLANNED)
 
-                # print
-                x += width
-                if x < WALL_L:
-                    x += HEAD
-                
-                self.bricks.append({
+                rows_data.append({
                     "id": rect_id,
                     "row": row,
                     "col": col,
                     "symbol": brick_symbol,
                     "built_color": BRICK_COLOR_MAP.get(brick_symbol),
-                    "stride": stride_id
+                    "x0": x,
+                    "x1": x + width,
+                    "y": y,
+                    "w": width,
+                    "built": False
                 })
-                self.build_order.append(len(self.bricks) - 1)
+
+                x += width
+                if x < WALL_L:
+                    x += HEAD
+        
+        df = pd.DataFrame(rows_data)
+        print(f"Design generated.")
+        return df
 
     def step(self,_evt=None):
         '''
-        Step through the build plan, and highlight built bricks
+        Step through the build plan - through every stride, highlight built bricks
         '''
-        if self.counter >= len(self.build_order):
+
+        if self.stride_counter >= len(self.stride_starts):
             print("Build complete!")
             return
-        idx = self.build_order[self.counter]
-        brick = self.bricks[idx]
-        self.canvas.itemconfig(brick["id"], fill=brick["built_color"])
-        self.canvas.tag_raise(brick["stride"], brick["id"])
+
+        if self.counter >= len(self.build_order):
+            self.stride_plan = False
+            print("Stride built!")     
+            r, c = self.stride_starts[self.stride_counter]
+            self.build_order =  self._build_order_stride(r, c)
+            self.counter = 0 
+            self.stride_counter += 1
+           
+        brick_idx = self.build_order[self.counter]
+        brick = self.get_brick(brick_idx[0],brick_idx[1])
+        color = stride_color_for(self.stride_counter)
+        self.canvas.itemconfig(brick["id"], fill=color)
 
         self.counter += 1
+
         self._update_status()
 
 
