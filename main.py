@@ -41,6 +41,11 @@ def parse_args():
         default="stretcher",
         help="Bond pattern"
     )
+    parser.add_argument(
+        "--plan",
+        action="store_true",
+        help="Enable stride planning, else only design"
+    )
     return parser.parse_args()
 
 def mm_to_px(x_mm):
@@ -138,7 +143,6 @@ class WallViz:
         self.bricks = self._build_template()
         self.build_order = []
 
-        
         # self.stride_starts=[(0,0),(0,5),(0,7)]
         self.stride_starts = self._stride_starts_gen()
         self.stride_counter = 0
@@ -163,6 +167,11 @@ class WallViz:
         return self.rect_id
     
     def _stride_starts_gen(self):
+        
+        if not args.plan:
+            print("Add --plan to plan and step through the build")
+            return
+        
         all_starts = []
 
         for _, brick in self.bricks.iterrows():
@@ -312,8 +321,11 @@ class WallViz:
         '''
         Step through the build plan - through every stride, highlight built bricks
         '''
-
         
+        if not args.plan:
+            print("Add --plan to plan and step through the build")
+            return
+
         if (self.stride_counter == len(self.stride_starts)) and (self.counter == len(self.build_order)):
             print("Build complete!")
             return
@@ -321,7 +333,6 @@ class WallViz:
         if (self.counter == len(self.build_order)) or (len(self.build_order) == 0):
             r, c = self.stride_starts[self.stride_counter]
             self.build_order =  self._build_order_stride(r, c)
-            print(f"Generated build order for Stride {self.stride_counter}")
             self.stride_counter += 1
             self.counter = 0
         
