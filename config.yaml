@@ -11,6 +11,12 @@ brick:
     h: 50
     symbol: 'xx'
   
+  queen:
+    l: 45
+    w: 50
+    h: 50
+    symbol: 'q'
+
 joint:
   head: 10
   bed: 12.5
