@@ -1,13 +1,10 @@
-import yaml
 import tkinter as tk
 import pandas as pd
 
-from dataclasses import dataclass
-from typing import Dict, Any
-from helpers import (symbol_to_width, load_config, 
+from src.helpers import (symbol_to_width, load_config, 
                     parse_args, mm_to_px, stride_color_for, 
                     make_bond_fn, get_brick, set_built) 
-from config import WallConfig
+from src.config import WallConfig
 
 
 def generate_wall_design(cfg: WallConfig, bond_fn):
@@ -110,8 +107,8 @@ class WallViz:
         all_starts = []
 
         for _, brick in self.bricks.iterrows():
-            # potential stride starts every 5th row - tunable
-            if brick["row"] % 5 == 0:
+            # simulate stride starts every 5th row - tunable
+            if (brick["row"] % 5 == 0) and ((brick["col"] % 1 == 0)):
                 all_starts.append((int(brick["row"]), int(brick["col"])))
         
         remaining_bricks = set((int(r), int(c)) for r, c in 
@@ -124,7 +121,8 @@ class WallViz:
             best_start = None
             best_coverage = 0
             best_bricks = []
-            for start in all_starts:
+            for i,start in enumerate(all_starts):
+                # print(i)
                 # if start not in remaining_bricks:
                 #     continue
                 
@@ -145,7 +143,6 @@ class WallViz:
                 
             selected_strides.append(best_start)
             self.generate_build_order(best_start[0], best_start[1])
-            # self.generate_build_order(best_start[0], best_start[1])
             remaining_bricks -= set(best_bricks)
             all_starts.remove(best_start)
         
@@ -157,13 +154,13 @@ class WallViz:
         '''
         Generate build order within stride for given start position 
         '''
-        rows_in_stride = cfg.stride_h // cfg.course_h
-        r_end = min(int(cfg.rows), int(start_r + rows_in_stride))
+        rows_in_stride = self.cfg.stride_h // self.cfg.course_h
+        r_end = min(int(self.cfg.rows), int(start_r + rows_in_stride))
         build_order= []
 
         start_b = get_brick(self.bricks,start_r, start_c)
         x_base = 0 if start_b is None else start_b["x0"]
-        x_end = x_base + cfg.stride_l
+        x_end = x_base + self.cfg.stride_l
 
         # check every brick in every row of stride
         for r in range(start_r, r_end):

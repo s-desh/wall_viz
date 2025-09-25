@@ -1,4 +1,4 @@
-from config import WallConfig
+from src.config import WallConfig
 
 def stretcher_bond_row(cfg, row_idx):
     course = []
@@ -54,3 +54,26 @@ def english_cross_bond_row(cfg: WallConfig, row_idx):
     course.extend([second_brick['symbol'], first_brick['symbol']])
 
     return course
+
+# def wild_bond_row(cfg, row_idx):
+#     row_idx += 1
+    
+#     course = []
+
+#     # alternate half / full first bricks
+#     if (row_idx % 2 != 0) and (row_idx % 3 != 0):
+#         first_brick = cfg.full
+#     elif row_idx % 2 == 0:
+#         first_brick = cfg.half
+#     else:
+#         first_brick = cfg.full 
+    
+#     course.append(first_brick['symbol'])
+
+#     remaining_wall = cfg.wall_l - (first_brick['l'] + cfg.head)
+
+#     while remaining_wall > 0:
+#         # lay a row of full bricks
+#         n_full = min(6, remaining_wall // (cfg.full['l'] + cfg.head))
+#         course.extend([cfg.full['symbol']]*n_full)
+    

@@ -1,5 +1,5 @@
-from config import WallConfig
-from bonds import stretcher_bond_row, english_cross_bond_row
+from src.config import WallConfig
+from src.bonds import stretcher_bond_row, english_cross_bond_row
 
 import colorsys
 import argparse
