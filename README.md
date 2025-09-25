@@ -1,6 +1,8 @@
 # Wall Viz
 Simple tool to visualize brick laying plans.
 
+<img src="english_cross.png" alt="drawing" width="300"/>
+
 
 ### Quick Start
 Follow these instructions preferably on a Linux machine
@@ -28,7 +30,7 @@ python3 main.py --bond stretcher
 python3 main.py --bond stretcher --plan
 ```
 
-### Details
+### Other Details
 - `./src` contains the code for bond pattern, configuration and other helpers.
 - `./main.py` handles the main visualisation, design and planning.
 - New bond patterns can be supported by adding fucntions in `./src/bonds.py`.
