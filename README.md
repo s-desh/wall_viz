@@ -14,18 +14,18 @@ sudo apt install python3-pip
 2. Create a python virtual environment to install dependencies
 ```
 cd ./wall_viz
-pip3 -m venv venv
+python3 -m venv venv
 source venv/bin/activate
 pip3 install -r requirements.txt
 ```
 3. After installation run the visualizer to only view the wall design
 ```
-python3 main.py --pattern stretcher
+python3 main.py --bond stretcher
 ```
-4. `--pattern` allows `stretcher` and `english_cross` values and generates respective patterns.
+4. `--bond` allows `stretcher` and `english_cross` values and generates respective patterns.
 5. Add `--plan` argument for optimizing the wall build plan and stepping through it with "enter" key. Plan generation can take upto a minute.
 ```
-python3 main.py --pattern stretcher --plan
+python3 main.py --bond stretcher --plan
 ```
 
 ### Details
@@ -37,4 +37,4 @@ python3 main.py --pattern stretcher --plan
 ### Limitations and potential improvements
 - Current approach is greedy (might not be optimal) and does not optimize on stride order that can potentially lead to fewer total strides required.
 - Takes around a minute to come up with stride starts. Can by improved by, reducing the number of stride starts on which build order is simulated.
-- BONUS B - Wild bond not implemented.
+- BONUS B - Wild bond incomplete.

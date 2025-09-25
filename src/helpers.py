@@ -1,5 +1,5 @@
 from src.config import WallConfig
-from src.bonds import stretcher_bond_row, english_cross_bond_row
+from src.bonds import stretcher_bond_row, english_cross_bond_row, wild_bond_row
 
 import colorsys
 import argparse
@@ -8,6 +8,7 @@ import yaml
 BOND = {
     "stretcher": stretcher_bond_row,
     "english_cross": english_cross_bond_row,
+    "wild": wild_bond_row
 }
 
 
@@ -30,7 +31,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Wall visualizer")
     parser.add_argument(
         "--bond",
-        choices=["stretcher", "english_cross"],
+        choices=["stretcher", "english_cross", "wild"],
         default="stretcher",
         help="Bond pattern"
     )
